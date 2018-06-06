@@ -3,48 +3,116 @@ package MiniORM;
 use 5.022001;
 use strict;
 use warnings;
+use DBI;
 
-require Exporter;
-use AutoLoader qw(AUTOLOAD);
+use vars qw($AUTOLOAD);
 
-our @ISA = qw(Exporter);
+our $VERSION = '0.1';
+our $errstr;
 
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
+sub new {
+	my ($class, $param) = @_;
 
-# This allows declaration	use MiniORM ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
-our %EXPORT_TAGS = ( 'all' => [ qw(
-	
-) ] );
+	if (ref $param ne 'HASH') {
+		$errstr = 'Cannot build DSN string.';
+		return;
+	}
 
-our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
+	my $driver = $param->{driver};
+	my $dsn = "dbi:$driver:dbname=$param->{db}";
+	my $dbh = DBI->connect($dsn);
 
-our @EXPORT = qw(
-	
-);
+	if (!$dbh) {
+		$errstr = $DBI::errstr;
+		return;
+	}
 
-our $VERSION = '0.01';
+	my $self = {
+		driver	=> $driver,
+		dbh	=> $dbh,
+	};
 
+	bless $self, $class;
+	return $self;
+}
 
-# Preloaded methods go here.
+sub AUTOLOAD {
+	my $sub = $AUTOLOAD;
+	my ($parent, @args) = (@_);
 
-# Autoload methods go after =cut, and are processed by the autosplit program.
+	$sub =~ s/.*:://;
+	if ($sub !~ /^[A-Z][A-Za-z0-9_]*$/) {
+		die "MiniORM: undefined subroutine '$sub'.";
+	}
+
+	my $model = MiniORM::Model->new($sub, $parent);
+	$model->where(@args) if @args;
+
+	return $model;
+}
+
+package MiniORM::Model;
+
+sub new {
+	my ($class, $name, $parent) = @_;
+
+	my $self = {
+		handler => $parent,
+		name	=> $name,
+		cst	=> [],
+	};
+
+	bless $self, $class;
+	return $self;
+}
+
+sub where {
+	my ($self, @cst) = @_;
+	# TODO
+}
+
+sub insert {
+	my ($self, %record) = @_;
+
+	my @keys = keys %record;
+	my @values = map { $record{$_} } @keys;
+
+	my $sql = "INSERT INTO "
+		. lc($self->{name})
+		. " ("
+		. join(", ", @keys)
+		. ") VALUES ("
+		. join(", ", map { "?" } @keys)
+		. ")";
+
+	my $sth = $self->{handler}->{dbh}->prepare($sql);
+	$sth->execute(@values);
+
+	if ($self->{handler}->{dbh}->err) {
+		$MiniORM::errstr = $self->{handler}->{dbh}->errstr;
+		return;
+	}
+
+	return 1;
+}
 
 1;
 __END__
-# Below is stub documentation for your module. You'd better edit it!
 
 =head1 NAME
 
-MiniORM - Perl extension for blah blah blah
+MiniORM - Simple SQL generator
 
 =head1 SYNOPSIS
 
   use MiniORM;
-  blah blah blah
+
+  my $DB = MiniORM->new({
+    driver => 'sqlite',
+    db     => 'test.db',
+  });
+
+  $DB->Users->insert({ name => "tom14159" });
 
 =head1 DESCRIPTION
 
