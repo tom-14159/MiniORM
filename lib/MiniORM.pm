@@ -5,9 +5,12 @@ use strict;
 use warnings;
 use DBI;
 
+use MiniORM::Model;
+
 use vars qw($AUTOLOAD);
 
 our $VERSION = '0.1';
+our @SUPPORTED_DRIVERS = qw(Pg SQLite);
 our $errstr;
 
 sub new {
@@ -16,6 +19,11 @@ sub new {
 	if (ref $param ne 'HASH') {
 		$errstr = 'Cannot build DSN string.';
 		return;
+	}
+
+	unless (grep { $param->{driver} eq $_ } @SUPPORTED_DRIVERS) {
+		die "MiniORM: unsupported driver $param->{driver}, supported: "
+			. join(", ", @SUPPORTED_DRIVERS) . ".";
 	}
 
 	my $driver = $param->{driver};
@@ -38,62 +46,38 @@ sub new {
 
 sub AUTOLOAD {
 	my $sub = $AUTOLOAD;
-	my ($parent, @args) = (@_);
+	my ($miniorm, @args) = (@_);
 
 	$sub =~ s/.*:://;
 	if ($sub !~ /^[A-Z][A-Za-z0-9_]*$/) {
 		die "MiniORM: undefined subroutine '$sub'.";
 	}
 
-	my $model = MiniORM::Model->new($sub, $parent);
-	$model->where(@args) if @args;
+	my $model = MiniORM::Model->new($sub, $miniorm, undef, @args);
 
 	return $model;
 }
 
-package MiniORM::Model;
+sub get_last_id {
+	my ($self) = @_;
 
-sub new {
-	my ($class, $name, $parent) = @_;
+	my $id;
 
-	my $self = {
-		handler => $parent,
-		name	=> $name,
-		cst	=> [],
-	};
-
-	bless $self, $class;
-	return $self;
-}
-
-sub where {
-	my ($self, @cst) = @_;
-	# TODO
-}
-
-sub insert {
-	my ($self, %record) = @_;
-
-	my @keys = keys %record;
-	my @values = map { $record{$_} } @keys;
-
-	my $sql = "INSERT INTO "
-		. lc($self->{name})
-		. " ("
-		. join(", ", @keys)
-		. ") VALUES ("
-		. join(", ", map { "?" } @keys)
-		. ")";
-
-	my $sth = $self->{handler}->{dbh}->prepare($sql);
-	$sth->execute(@values);
-
-	if ($self->{handler}->{dbh}->err) {
-		$MiniORM::errstr = $self->{handler}->{dbh}->errstr;
-		return;
+	if ($self->{driver} eq 'Pg') {
+		($id) = $self->{dbh}->selectrow_array("SELECT lastval()");
+	} elsif ($self->{driver} eq 'SQLite') {
+		($id) = $self->{dbh}->selectrow_array("SELECT last_insert_rowid()");
 	}
 
-	return 1;
+	return $id;
+}
+
+sub error {
+	my ($self, $local_errstr) = @_;
+
+	$MiniORM::errstr = $local_errstr;
+
+	return;
 }
 
 1;
