@@ -88,6 +88,22 @@ sub reload {
 	return $self;
 }
 
+sub where {
+	my ($self, @where) = @_;
+
+	my $dataset = MiniORM::Dataset->new($self->{orm});
+
+	return $dataset->from($self->{model})->where(@where);
+}
+
+sub all {
+	my ($self, @where) = @_;
+
+	my $dataset = MiniORM::Dataset->new($self->{orm});
+
+	return $dataset->from($self->{model})->all();
+}
+
 sub AUTOLOAD {
 	my $sub = $AUTOLOAD;
 	my ($self, $arg) = @_;

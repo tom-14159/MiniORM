@@ -6,6 +6,7 @@ use warnings;
 use DBI;
 
 use MiniORM::Model;
+use MiniORM::Dataset;
 
 use vars qw($AUTOLOAD);
 
