@@ -40,7 +40,7 @@ sub where {
 }
 
 sub sql_select {
-	my ($self) = @_;
+	my ($self, %attr) = @_;
 
 	return $self->{orm}->error("No tables to select from")
 		unless @{$self->{tables}};
@@ -49,7 +49,13 @@ sub sql_select {
 	my $tables = join(", ", @{$self->{tables}});
 	my $where = join(" AND ", $self->transform_where(@{$self->{where}}));
 
-	return "SELECT $cols FROM $tables WHERE $where";
+	my $sql = "SELECT $cols FROM $tables WHERE $where";
+
+        if (%attr && $attr{limit} && $attr{limit} =~ /^[0-9]+$/) {
+		$sql .= " LIMIT $attr{limit}";
+	}
+
+	return $sql;
 }
 
 sub transform_where {
@@ -121,6 +127,33 @@ sub all {
 	}
 
 	return @rs;
+}
+
+sub first {
+	my ($self) = @_;
+
+	my $sql = $self->sql_select(limit => 1)
+		or return;
+
+	my $model;
+	if (scalar @{$self->{tables}} == 1) {
+		$model = $self->{tables}->[0];
+	} else {
+		$model = "_".join("__", @{$self->{tables}});
+	}
+
+	my $sth = $self->{orm}->{dbh}->prepare($sql);
+	$sth->execute(@{ $self->{binding} });
+	while (my $row = $sth->fetchrow_hashref) {
+		return (MiniORM::Model->new(
+			$model,
+			$self->{orm},
+			$row->{id},
+			%$row
+		));
+	}
+
+	return;
 }
 
 1;
