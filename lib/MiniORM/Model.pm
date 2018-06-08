@@ -44,7 +44,24 @@ sub save {
 
 	if ($self->{id}) {
 		# UPDATE
-		# TODO
+                my @keys = keys %{$self->{fields}};
+		my @values = map { $self->{fields}->{$_} } @keys;
+
+		my $sql = "UPDATE "
+			. lc($self->{model})
+			. " SET "
+			. join(", ", map { "$_ = ?" } @keys)
+			. " WHERE id = ?";
+		my $sth = $self->{orm}->{dbh}->prepare($sql);
+		$sth->execute(@values, $self->{id});
+
+		if ($self->{orm}->{dbh}->err) {
+			return $self->{orm}->error($self->{orm}->{dbh}->errstr);
+		}
+
+		if (exists $self->{fields}->{id} && $self->{fields}->{id} ne $self->{id}) {
+			$self->{id} = $self->{fields}->{id};
+		}
 	} else {
 		# INSERT
 		my @keys = grep { $_ ne "id" } keys %{$self->{fields}};
