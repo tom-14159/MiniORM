@@ -105,7 +105,7 @@ sub reload {
 	return $self;
 }
 
-sub where {
+sub find {
 	my ($self, @where) = @_;
 
 	my $dataset = MiniORM::Dataset->new($self->{orm});
