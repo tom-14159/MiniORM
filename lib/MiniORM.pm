@@ -36,9 +36,15 @@ sub new {
 		return;
 	}
 
+	if ($driver eq 'SQLite') {
+		my $sth = $dbh->prepare("PRAGMA foreign_keys = ON");
+		$sth->execute();
+	}
+
 	my $self = {
 		driver	=> $driver,
 		dbh	=> $dbh,
+		plurals => {},
 	};
 
 	bless $self, $class;
@@ -79,6 +85,26 @@ sub error {
 	$MiniORM::errstr = $local_errstr;
 
 	return;
+}
+
+sub pluralize {
+	my ($self, $singular, $plural) = @_;
+
+	if ($singular && $plural) {
+		$self->{plurals}->{$singular} = $plural;
+	} elsif ($singular && !$self->{plurals}->{$singular}) {
+		if ($singular =~ /s$/) {
+			$plural = $singular;
+		} elsif ($singular =~ /y$/) {
+			$plural = $singular;
+			$plural =~ s/y$/ies/;
+		} else {
+			$plural = $singular . "s";
+		}
+		$self->{plurals}->{$singular} = $plural;
+	}
+
+	return $self->{plurals}->{$singular};
 }
 
 1;

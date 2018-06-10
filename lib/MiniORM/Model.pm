@@ -48,7 +48,7 @@ sub save {
 		my @values = map { $self->{fields}->{$_} } @keys;
 
 		my $sql = "UPDATE "
-			. lc($self->{model})
+			. $self->{orm}->pluralize(lc($self->{model}))
 			. " SET "
 			. join(", ", map { "$_ = ?" } @keys)
 			. " WHERE id = ?";
@@ -68,7 +68,7 @@ sub save {
 		my @values = map { $self->{fields}->{$_} } @keys;
 
 		my $sql = "INSERT INTO "
-			. lc($self->{model})
+			. $self->{orm}->pluralize(lc($self->{model}))
 			. " ("
 			. join(", ", @keys)
 			. ") VALUES ("
@@ -93,7 +93,7 @@ sub reload {
 	my ($self) = @_;
 
 	if ($self->{id}) {
-		my $sql = "SELECT * FROM $self->{model} WHERE id = ?";
+		my $sql = "SELECT * FROM ".$self->{orm}->pluralize(lc($self->{model}))." WHERE id = ?";
 		my $attrs = $self->{orm}->{dbh}->selectrow_hashref($sql, {}, $self->{id});
 		if ($attrs) {
 			for my $key (keys %$attrs) {

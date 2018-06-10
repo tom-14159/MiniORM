@@ -26,7 +26,7 @@ sub new {
 sub from {
 	my ($self, @tables) = @_;
 
-	push @{ $self->{tables} }, @tables;
+	push @{ $self->{tables} }, (map {$self->{orm}->pluralize(lc($_)) } @tables);
 
 	return $self;
 }
@@ -39,7 +39,7 @@ sub where {
 	return $self;
 }
 
-sub sql_select {
+sub _sql_select {
 	my ($self, %attr) = @_;
 
 	return $self->{orm}->error("No tables to select from")
@@ -47,7 +47,7 @@ sub sql_select {
 
 	my $cols = join(", ", @{$self->{cols}}) || "*";
 	my $tables = join(", ", @{$self->{tables}});
-	my $where = join(" AND ", $self->transform_where(@{$self->{where}}));
+	my $where = $self->transform_where(@{$self->{where}});
 
 	my $sql = "SELECT $cols FROM $tables WHERE $where";
 
@@ -56,6 +56,30 @@ sub sql_select {
 	}
 
 	return $sql;
+}
+
+sub delete {
+	my ($self) = @_;
+
+	if (scalar @{$self->{tables}} == 1) {
+		my $where = $self->transform_where(@{$self->{where}});
+		my $sql = "DELETE FROM $self->{tables}->[0] WHERE $where";
+
+		my $sth = $self->{orm}->{dbh}->prepare($sql);
+		if (!$self->{orm}->{dbh}->err) {
+			return $self->{orm}->{dbh}->errstr;
+		}
+
+		$sth->execute(@{ $self->{binding} });
+		if (!$self->{orm}->{dbh}->err) {
+			return $self->{orm}->error($self->{orm}->{dbh}->errstr);
+		}
+
+		$self = undef;
+		return 1;
+	} else {
+		return $self->{orm}->error("Cannot delete from 0 or more than 1 tables.");
+	}
 }
 
 sub transform_where {
@@ -95,15 +119,16 @@ sub transform_where {
 		}
 	}
 
+	my $conds = join(" AND ", @conds);
 	$self->{binding} = \@bind;
 
-	return @conds;
+	return $conds;
 }
 
 sub all {
 	my ($self) = @_;
 
-	my $sql = $self->sql_select
+	my $sql = $self->_sql_select
 		or return;
 
 	my @rs;
@@ -119,7 +144,7 @@ sub all {
 	$sth->execute(@{ $self->{binding} });
 	while (my $row = $sth->fetchrow_hashref) {
 		push @rs, (MiniORM::Model->new(
-			$model,
+			ucfirst($model),
 			$self->{orm},
 			$row->{id},
 			%$row
@@ -132,7 +157,7 @@ sub all {
 sub first {
 	my ($self) = @_;
 
-	my $sql = $self->sql_select(limit => 1)
+	my $sql = $self->_sql_select(limit => 1)
 		or return;
 
 	my $model;
@@ -146,7 +171,7 @@ sub first {
 	$sth->execute(@{ $self->{binding} });
 	while (my $row = $sth->fetchrow_hashref) {
 		return (MiniORM::Model->new(
-			$model,
+			ucfirst($model),
 			$self->{orm},
 			$row->{id},
 			%$row
