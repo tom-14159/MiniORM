@@ -66,12 +66,12 @@ sub delete {
 		my $sql = "DELETE FROM $self->{tables}->[0] WHERE $where";
 
 		my $sth = $self->{orm}->{dbh}->prepare($sql);
-		if (!$self->{orm}->{dbh}->err) {
+		if ($self->{orm}->{dbh}->err) {
 			return $self->{orm}->{dbh}->errstr;
 		}
 
 		$sth->execute(@{ $self->{binding} });
-		if (!$self->{orm}->{dbh}->err) {
+		if ($self->{orm}->{dbh}->err) {
 			return $self->{orm}->error($self->{orm}->{dbh}->errstr);
 		}
 
